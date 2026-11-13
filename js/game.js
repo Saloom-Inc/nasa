@@ -158,9 +158,9 @@ function setState(s) {
   state = s;
   const playing = s === 'play' || s === 'launch';
   $('hud').classList.toggle('hidden', !playing && s !== 'pause');
-  $('touch').classList.toggle('hidden', !(isTouch && s === 'play'));
-  if (s !== 'play') { $('prompt').classList.add('hidden'); $('cabin').classList.add('hidden'); }
-  if (s === 'play' || s === 'launch') show(null);
+  $('touch').classList.toggle('hidden', !(isTouch && (s === 'play' || s === 'lab')));
+  if (s !== 'play' && s !== 'lab') { $('prompt').classList.add('hidden'); } if (s !== 'play') $('cabin').classList.add('hidden');
+  if (s === 'play' || s === 'launch' || s === 'lab') show(null);
   resize();
 }
 
@@ -407,6 +407,7 @@ function update(dt) {
     return;
   }
   if (state === 'launch') return updateLaunch(dt);
+  if (state === 'lab') return updateLab(dt);
 
   // ---- play ----
   o2 -= dt;
@@ -489,7 +490,8 @@ function updateLaunch(dt) {
       if (!L.snd2 && L.ct > 9.6) { L.snd2 = 1; tone(180, .25, 'square', .05, 200); noise(.4, .1, 2000); }
       if (!L.snd3 && L.ct > 15.1) { L.snd3 = 1; noise(1.6, .2, 1400); }
       stepCine(dt, L);
-      if (L.skip || L.ct > 18) finish();
+      if (!L.snd4 && L.ct > 18.3) { L.snd4 = 1; noise(4, .07, 220); }
+      if (L.skip || L.ct > 26.5) startLab();
     }
   }
 }
@@ -557,6 +559,7 @@ function drawCine(L) {
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cv.width, cv.height);
   ctx.setTransform(S, 0, 0, S, 0, 0);
   const ct = L.ct, cm = M.cm || 'Command Module';
+  if (ct >= 18) { drawCine2(ct - 18); return; }
   const fadeIn = Math.min(1, ct / .6);
   if (ct < 4) {
     // ---- cruise home ----
@@ -638,9 +641,183 @@ function drawCine(L) {
   if (fadeIn < 1) { ctx.fillStyle = `rgba(0,0,0,${1 - fadeIn})`; ctx.fillRect(0, 0, VW, VH); }
 }
 
+
+// ---------- recovery & flight to Houston ----------
+function drawHeli(x, y, t2, scale = 1) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(scale, scale);
+  ctx.fillStyle = '#5a6578';
+  ctx.beginPath(); ctx.ellipse(0, 0, 30, 13, 0, 0, 7); ctx.fill();
+  ctx.fillRect(-62, -5, 40, 6);
+  ctx.fillStyle = '#8fd0ff'; ctx.beginPath(); ctx.ellipse(18, -3, 11, 8, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#3d4554'; ctx.fillRect(-4, -18, 8, 6);
+  ctx.strokeStyle = '#3d4554'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-14, 14); ctx.lineTo(16, 14); ctx.stroke();
+  const r = 52 * Math.abs(Math.cos(t2 * 40));
+  ctx.strokeStyle = 'rgba(40,46,58,.8)'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(-r, -19); ctx.lineTo(r, -19); ctx.stroke();
+  ctx.strokeStyle = 'rgba(40,46,58,.7)'; ctx.lineWidth = 2; const tr = 9 * Math.abs(Math.sin(t2 * 50));
+  ctx.beginPath(); ctx.moveTo(-62, -2 - tr); ctx.lineTo(-62, -2 + tr); ctx.stroke();
+  ctx.restore();
+}
+function drawShip(x, y, sc) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc);
+  ctx.fillStyle = '#4a5260'; ctx.beginPath(); ctx.moveTo(-120, 0); ctx.lineTo(130, 0); ctx.lineTo(112, 18); ctx.lineTo(-108, 18); ctx.fill();
+  ctx.fillStyle = '#5c6575'; ctx.fillRect(-120, -6, 250, 6);
+  ctx.fillStyle = '#3d4452'; ctx.fillRect(40, -30, 26, 24); ctx.fillRect(50, -48, 6, 18);
+  ctx.fillStyle = '#e6e8ee'; for (let i = -100; i < 30; i += 26) ctx.fillRect(i, -7, 12, 1.5);
+  ctx.restore();
+}
+function drawPlane(x, y, sc) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc);
+  ctx.fillStyle = '#d9dde6';
+  ctx.beginPath(); ctx.ellipse(0, 0, 60, 9, 0, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-6, -3); ctx.lineTo(-30, -38); ctx.lineTo(-18, -38); ctx.lineTo(16, -3); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-6, 3); ctx.lineTo(-24, 22); ctx.lineTo(-14, 22); ctx.lineTo(14, 3); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-48, -4); ctx.lineTo(-62, -26); ctx.lineTo(-54, -26); ctx.lineTo(-40, -4); ctx.fill();
+  ctx.fillStyle = '#2b3550'; for (let i = 10; i < 50; i += 8) ctx.fillRect(i, -3, 4, 3);
+  ctx.restore();
+}
+function drawCine2(u) {
+  if (u < 4.5) {
+    const k = u / 4.5;
+    const sky = ctx.createLinearGradient(0, 0, 0, VH); sky.addColorStop(0, '#2d6fc4'); sky.addColorStop(1, '#a9d4f5');
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, VW, VH);
+    const SEA = VH * .7;
+    const sea = ctx.createLinearGradient(0, SEA, 0, VH); sea.addColorStop(0, '#1f6fa8'); sea.addColorStop(1, '#0b3558');
+    ctx.fillStyle = sea; ctx.fillRect(0, SEA, VW, VH - SEA);
+    ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.lineWidth = 1.5;
+    for (let i = 0; i < 10; i++) { const y = SEA + 8 + i * 14, o = (u * 30 + i * 37) % 60; ctx.beginPath(); for (let x = -60 + o; x < VW; x += 60) { ctx.moveTo(x, y); ctx.quadraticCurveTo(x + 15, y - 4, x + 30, y); } ctx.stroke(); }
+    drawShip(VW * .78, SEA - 2, 1.3);
+    // capsule bobbing with a raft
+    const cx = VW * .2;
+    ctx.fillStyle = '#e8b82c'; ctx.beginPath(); ctx.ellipse(cx + 34, SEA + 2, 22, 5, 0, 0, 7); ctx.fill();
+    drawCapsule(cx, SEA - 18 + Math.sin(u * 3) * 2, Math.sin(u * 2) * .05, 1.2);
+    // helicopter: hover over raft, lift crew, fly to ship
+    const hx = k < .35 ? cx + 34 : cx + 34 + (VW * .78 - cx - 34) * ((k - .35) / .65) ** 1.3;
+    const hy = SEA - 150 - (k > .35 ? Math.sin((k - .35) / .65 * Math.PI) * 40 : 0);
+    const line = k < .35 ? 120 * Math.min(1, k / .2) : Math.max(0, 120 - (k - .35) * 600);
+    ctx.strokeStyle = '#2b2f3a'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(hx, hy + 14); ctx.lineTo(hx, hy + 14 + line); ctx.stroke();
+    if (k > .2) { ctx.fillStyle = '#e2442f'; ctx.fillRect(hx - 4, hy + 12 + line, 8, 9); }
+    drawHeli(hx, hy, u, 1.1);
+    caption('Recovery', `A helicopter lifts the crew out of the ocean and flies them to the ${M.ship || 'recovery ship'}.`);
+  } else {
+    const k = (u - 4.5) / 4;
+    const sky = ctx.createLinearGradient(0, 0, 0, VH); sky.addColorStop(0, '#1b2350'); sky.addColorStop(.7, '#e0794a'); sky.addColorStop(1, '#f6b26b');
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, VW, VH);
+    ctx.fillStyle = 'rgba(255,220,150,.9)'; ctx.beginPath(); ctx.arc(VW * .25, VH * .72, 34, 0, 7); ctx.fill();
+    ctx.fillStyle = '#2a2c3a'; ctx.fillRect(0, VH * .78, VW, VH * .22);
+    for (let i = 0; i < 60; i++) { const x = ((i * 73 - u * 120) % (VW + 40) + VW + 40) % (VW + 40) - 20, y = VH * .8 + (i * 37) % (VH * .18); ctx.fillStyle = i % 3 ? 'rgba(255,214,120,.8)' : 'rgba(255,255,255,.6)'; ctx.fillRect(x, y, 2, 2); }
+    for (const c of clouds.slice(0, 8)) { const x = ((c.x * VW - u * 60 * c.s) % (VW + 300) + VW + 300) % (VW + 300) - 150; ctx.fillStyle = 'rgba(255,200,170,.35)'; ctx.beginPath(); ctx.ellipse(x, VH * .3 + c.y * 60, c.w, c.w * .15, 0, 0, 7); ctx.fill(); }
+    drawPlane(VW * .2 + k * VW * .55, VH * .42 - Math.sin(k * 3) * 12, 1.3);
+    caption('Next stop: Houston', `${M.name}'s samples are flown to NASA's Lunar Receiving Laboratory.`);
+  }
+  const f = u < .5 ? 1 - u / .5 : u > 8 ? Math.min(1, (u - 8) / .5) : 0;
+  if (f > 0) { ctx.fillStyle = `rgba(5,7,13,${f})`; ctx.fillRect(0, 0, VW, VH); }
+}
+
+// ---------- Lunar Receiving Laboratory (playable) ----------
+const LAB_FLOOR = 400;
+let lab = null;
+function startLab() {
+  if (state === 'lab' || state === 'result') return;
+  const home = cabinItems().filter(i => i.type === 'sci');
+  if (!home.length) { finish(); return; }
+  const st = home.map((it, i) => ({ it, x: 420 + i * 230, done: false }));
+  lab = { st, w: 420 + home.length * 230 + 340, exit: 420 + home.length * 230 + 120 };
+  P = { x: 120, y: LAB_FLOOR, vx: 0, vy: 0, on: true, face: 1, carry: null, walk: 0, stepAcc: 0 };
+  camX = 0; camY = 0; parts = []; lastPrompt = '';
+  setState('lab');
+  toast('Lunar Receiving Laboratory · Houston', M.labIntro || 'Hand each sample to the lab team.', '', 7);
+}
+function labNear() {
+  let best = null, bd = 60;
+  for (const s of lab.st) { const d = Math.abs(P.x - s.x); if (d < bd) { bd = d; best = s; } }
+  return best;
+}
+function updateLab(dt) {
+  const dir = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+  const target = dir * 170;
+  P.vx += Math.sign(target - P.vx) * Math.min(Math.abs(target - P.vx), 900 * dt);
+  if (dir) P.face = dir;
+  if (take('jump') && P.on) { P.vy = -380; P.on = false; sfx.jump(); }
+  P.vy += 1300 * dt; P.x += P.vx * dt; P.y += P.vy * dt;
+  P.x = Math.max(30, Math.min(lab.w - 30, P.x));
+  if (P.y >= LAB_FLOOR) { P.y = LAB_FLOOR; P.vy = 0; P.on = true; }
+  if (P.on && Math.abs(P.vx) > 10) P.walk += dt * Math.abs(P.vx) * .09; else P.walk *= .9;
+  for (const k in pressed) if (k.startsWith('n') || k === 'lift' || k === 'pause') pressed[k] = false;
+  const s = labNear(), atExit = Math.abs(P.x - lab.exit) < 60;
+  if (take('act')) {
+    if (s && !s.done) { s.done = true; sfx.deploy(); burst(s.x, LAB_FLOOR - 120, 16, '#5ce1b9'); toast(`Lab result: ${s.it.name}`, s.it.lab || s.it.fact, 'good', 8); }
+    else if (s && s.done) toast(s.it.name, s.it.lab || s.it.fact, '', 6);
+    else if (atExit) { finish(); return; }
+  }
+  stepParts(dt);
+  camX += (P.x - VW / 2 - camX) * Math.min(1, dt * 4);
+  camX = Math.max(0, Math.min(lab.w - VW, camX)); if (lab.w < VW) camX = (lab.w - VW) / 2;
+  const left = lab.st.filter(x => !x.done).length;
+  setPrompt(s ? (s.done ? `${s.it.name} · analysed ✓` : `<kbd>E</kbd> Hand over ${s.it.name}`)
+    : atExit ? `<kbd>E</kbd> Go to the mission debrief${left ? ` (${left} sample${left > 1 ? 's' : ''} not handed in)` : ''}`
+    : left ? `Walk to the lab stations · ${left} to go` : 'All samples handed in. Head to the debrief door →');
+}
+function drawLab() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#cfdad3'; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.setTransform(S, 0, 0, S, 0, 0);
+  const off = VH - 540;
+  ctx.save(); ctx.translate(-camX, off);
+  const W = lab.w;
+  // wall
+  const wg = ctx.createLinearGradient(0, 0, 0, LAB_FLOOR); wg.addColorStop(0, '#b9cbc1'); wg.addColorStop(1, '#d9e4dd');
+  ctx.fillStyle = wg; ctx.fillRect(-VW, -off - 10, W + VW * 2, LAB_FLOOR + off + 10);
+  ctx.fillStyle = '#9fb2a8'; ctx.fillRect(-VW, LAB_FLOOR - 40, W + VW * 2, 40);
+  // ceiling lights
+  for (let x = 60; x < W; x += 180) { ctx.fillStyle = '#f7fbff'; ctx.fillRect(x, 30 - off * .0, 110, 8); ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.beginPath(); ctx.moveTo(x, 38); ctx.lineTo(x + 110, 38); ctx.lineTo(x + 140, 160); ctx.lineTo(x - 30, 160); ctx.fill(); }
+  // windows
+  for (let x = 160; x < W - 200; x += 460) { ctx.fillStyle = '#7a8b84'; ctx.fillRect(x - 4, 96, 128, 98); const sg = ctx.createLinearGradient(0, 100, 0, 190); sg.addColorStop(0, '#6fb0e8'); sg.addColorStop(1, '#cfe7f7'); ctx.fillStyle = sg; ctx.fillRect(x, 100, 120, 90); ctx.fillStyle = '#7a8b84'; ctx.fillRect(x + 58, 100, 4, 90); }
+  // sign
+  ctx.fillStyle = '#23324a'; ctx.fillRect(40, 66, 300, 54);
+  ctx.fillStyle = '#ffffff'; ctx.textAlign = 'left'; ctx.font = '800 17px "Bricolage Grotesque",sans-serif'; ctx.fillText('LUNAR RECEIVING LABORATORY', 54, 90);
+  ctx.fillStyle = '#ffb347'; ctx.font = '600 11px "IBM Plex Mono",monospace'; ctx.fillText('MANNED SPACECRAFT CENTER · HOUSTON', 54, 108);
+  // floor
+  for (let x = -VW; x < W + VW; x += 40) for (let r = 0; r < 4; r++) { ctx.fillStyle = (Math.floor(x / 40) + r) % 2 ? '#8e9696' : '#a9b0b0'; ctx.fillRect(x, LAB_FLOOR + r * 40, 40, 40); }
+  ctx.fillStyle = '#6b7474'; ctx.fillRect(-VW, LAB_FLOOR, W + VW * 2, 3);
+  // stations
+  for (const s of lab.st) {
+    const x = s.x, y = LAB_FLOOR;
+    ctx.fillStyle = '#7d878f'; ctx.fillRect(x - 56, y - 50, 6, 50); ctx.fillRect(x + 50, y - 50, 6, 50);
+    ctx.fillStyle = '#c5ccd3'; ctx.fillRect(x - 64, y - 150, 128, 100);
+    ctx.fillStyle = '#9aa3ab'; ctx.fillRect(x - 64, y - 60, 128, 10);
+    ctx.fillStyle = 'rgba(170,215,240,.55)'; ctx.fillRect(x - 54, y - 140, 108, 64);
+    ctx.fillStyle = '#20242c'; ctx.beginPath(); ctx.arc(x - 24, y - 92, 11, 0, 7); ctx.arc(x + 24, y - 92, 11, 0, 7); ctx.fill();
+    if (s.done) { ctx.save(); ctx.translate(x, y - 104); drawIcon(s.it.icon, false); ctx.restore(); }
+    ctx.fillStyle = s.done ? '#5ce1b9' : (Math.sin(t * 4) > 0 ? '#ffb347' : '#8a6a2a'); ctx.beginPath(); ctx.arc(x, y - 160, 6, 0, 7); ctx.fill();
+    ctx.fillStyle = '#23324a'; ctx.fillRect(x - 64, y - 46, 128, 20);
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = '600 10px "IBM Plex Mono",monospace'; ctx.fillText(s.it.name.toUpperCase().slice(0, 20), x, y - 32);
+    // scientist
+    const sx = x + 86;
+    ctx.fillStyle = '#f4f5f7'; ctx.fillRect(sx - 9, y - 50, 18, 34);
+    ctx.fillStyle = '#3d4452'; ctx.fillRect(sx - 7, y - 16, 5, 16); ctx.fillRect(sx + 2, y - 16, 5, 16);
+    ctx.fillStyle = '#c9a47e'; ctx.beginPath(); ctx.arc(sx, y - 60, 9, 0, 7); ctx.fill();
+    ctx.fillStyle = '#3a2f28'; ctx.beginPath(); ctx.arc(sx, y - 63, 9, Math.PI, 0); ctx.fill();
+    ctx.fillStyle = '#9fd3f0'; ctx.fillRect(sx - 7, y - 62, 14, 4);
+    if (s.done) { ctx.fillStyle = '#5ce1b9'; ctx.font = '800 14px "Bricolage Grotesque",sans-serif'; ctx.fillText('✓', sx, y - 76); }
+  }
+  // exit door
+  const ex = lab.exit, allDone = lab.st.every(s => s.done);
+  ctx.fillStyle = '#5b6470'; ctx.fillRect(ex - 44, LAB_FLOOR - 150, 88, 150);
+  ctx.fillStyle = allDone ? '#2f5c4c' : '#3a4250'; ctx.fillRect(ex - 36, LAB_FLOOR - 142, 72, 142);
+  ctx.fillStyle = '#ffb347'; ctx.beginPath(); ctx.arc(ex + 22, LAB_FLOOR - 70, 3, 0, 7); ctx.fill();
+  ctx.fillStyle = allDone ? '#5ce1b9' : '#ffb347'; ctx.font = '700 11px "IBM Plex Mono",monospace'; ctx.textAlign = 'center';
+  ctx.fillText('MISSION', ex, LAB_FLOOR - 168); ctx.fillText('DEBRIEF →', ex, LAB_FLOOR - 154);
+  if (allDone) { ctx.globalAlpha = .25 + .2 * Math.sin(t * 4); ctx.fillStyle = '#5ce1b9'; ctx.fillRect(ex - 44, LAB_FLOOR - 150, 88, 150); ctx.globalAlpha = 1; }
+  // player
+  drawAstronaut();
+  for (const p of parts) { ctx.globalAlpha = Math.max(0, p.life); ctx.fillStyle = p.col; ctx.fillRect(p.x, p.y, p.s, p.s); }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
 // ---------- drawing ----------
 function draw() {
   if (state === 'launch' && launch && launch.ct != null) { drawCine(launch); return; }
+  if (state === 'lab') { drawLab(); return; }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#05070d'; ctx.fillRect(0, 0, cv.width, cv.height);
   ctx.setTransform(S, 0, 0, S, 0, 0);
