@@ -6,6 +6,8 @@ const MISSIONS = [
   {
     id: 'a11',
     name: 'Apollo 11',
+    cm: 'Columbia',
+    ship: 'USS Hornet',
     site: 'Tranquility Base',
     date: 'July 1969 · Sea of Tranquility',
     width: 2600,
@@ -43,6 +45,8 @@ const MISSIONS = [
   {
     id: 'a12',
     name: 'Apollo 12',
+    cm: 'Yankee Clipper',
+    ship: 'USS Hornet',
     site: 'Ocean of Storms',
     date: 'November 1969 · Ocean of Storms',
     width: 3600,
@@ -80,6 +84,8 @@ const MISSIONS = [
   {
     id: 'a17',
     name: 'Apollo 17',
+    cm: 'America',
+    ship: 'USS Ticonderoga',
     site: 'Taurus–Littrow',
     date: 'December 1972 · Taurus–Littrow valley',
     width: 4400,

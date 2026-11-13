@@ -482,12 +482,165 @@ function updateLaunch(dt) {
     if (L.t > .6 && L.t < 1.6) dust(ex + (Math.random() - .5) * 120, BASE, 4);
     camY = Math.max(0, -(L.y) - 200);
     camX += (M.lm - VW / 2 - camX) * Math.min(1, dt * 2);
-    if (L.t > 4.2) finish();
+    if (L.t > 4.2) {
+      if (L.ct == null) $('hud').classList.add('hidden');
+      L.ct = L.t - 4.2;
+      if (!L.snd1 && L.ct > 4) { L.snd1 = 1; noise(5, .14, 900); tone(70, 4.5, 'sawtooth', .03, 40); }
+      if (!L.snd2 && L.ct > 9.6) { L.snd2 = 1; tone(180, .25, 'square', .05, 200); noise(.4, .1, 2000); }
+      if (!L.snd3 && L.ct > 15.1) { L.snd3 = 1; noise(1.6, .2, 1400); }
+      stepCine(dt, L);
+      if (L.skip || L.ct > 18) finish();
+    }
   }
+}
+
+
+// ---------- return-to-Earth cinematic ----------
+let cps = [];
+const clouds = Array.from({ length: 18 }, (_, i) => ({ x: Math.random(), y: Math.random() * 1.6, w: 80 + Math.random() * 160, s: .6 + Math.random() * .8 }));
+function stepCine(dt, L) {
+  const ct = L.ct;
+  for (const p of cps) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += (p.g || 0) * dt; p.life -= dt; }
+  cps = cps.filter(p => p.life > 0);
+  if (ct > 4 && ct < 9.4) {
+    const k = Math.sin(Math.PI * Math.min(1, (ct - 4) / 5.4));
+    for (let i = 0; i < 6 * k + 1; i++) cps.push({ x: VW * .5 - 26 + Math.random() * 20, y: VH * .5 + 22 + Math.random() * 10, vx: 260 + Math.random() * 260, vy: -260 - Math.random() * 260, life: .5 + Math.random() * .4, s: 2 + Math.random() * 4 * k, col: Math.random() < .5 ? '#fff1c2' : Math.random() < .5 ? '#ffb347' : '#ff5a2a' });
+  }
+  if (ct > 15.1 && !L.splashed) {
+    L.splashed = true;
+    for (let i = 0; i < 90; i++) cps.push({ x: VW * .5 + (Math.random() - .5) * 40, y: VH * .62, vx: (Math.random() - .5) * 320, vy: -120 - Math.random() * 280, g: 520, life: 1.6, s: 2 + Math.random() * 3, col: Math.random() < .5 ? '#ffffff' : '#bfe6ff' });
+  }
+}
+function caption(title, sub) {
+  ctx.textAlign = 'center';
+  ctx.font = '500 14px Inter,sans-serif'; const w = Math.max(ctx.measureText(sub).width, title.length * 13) + 48;
+  ctx.fillStyle = 'rgba(5,8,18,.62)'; ctx.beginPath();
+  ctx.roundRect ? ctx.roundRect(VW / 2 - w / 2, 46, w, 70, 16) : ctx.rect(VW / 2 - w / 2, 46, w, 70); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.95)'; ctx.font = '800 26px "Bricolage Grotesque",sans-serif';
+  ctx.fillText(title, VW / 2, 78);
+  ctx.fillStyle = 'rgba(220,226,240,.85)'; ctx.font = '500 14px Inter,sans-serif';
+  ctx.fillText(sub, VW / 2, 102);
+  ctx.fillStyle = 'rgba(255,255,255,.45)'; ctx.font = '500 11px "IBM Plex Mono",monospace';
+  ctx.fillText(isTouch ? 'TAP TO SKIP' : 'PRESS ANY KEY TO SKIP', VW / 2, VH - 22);
+}
+function drawCapsule(x, y, ang, scale = 1, sm = false, shieldGlow = 0) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang); ctx.scale(scale, scale);
+  if (sm) { // service module + engine
+    ctx.fillStyle = '#c9ccd4'; ctx.fillRect(-14, 14, 28, 34);
+    ctx.fillStyle = '#9fa3ad'; ctx.fillRect(-14, 24, 28, 3); ctx.fillRect(-14, 38, 28, 3);
+    ctx.fillStyle = '#6d707b'; ctx.beginPath(); ctx.moveTo(-6, 48); ctx.lineTo(6, 48); ctx.lineTo(10, 60); ctx.lineTo(-10, 60); ctx.fill();
+  }
+  // command module cone
+  const g = ctx.createLinearGradient(-18, 0, 18, 0);
+  g.addColorStop(0, '#8f939d'); g.addColorStop(.45, '#f0f1f4'); g.addColorStop(1, '#a9adb7');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(-4, -22); ctx.lineTo(4, -22); ctx.lineTo(18, 12); ctx.lineTo(-18, 12); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#1b2033'; ctx.fillRect(-7, -6, 5, 5); ctx.fillRect(3, -6, 5, 5);
+  ctx.fillStyle = '#c3c6cf'; ctx.fillRect(-3, -26, 6, 4);
+  // heat shield
+  ctx.fillStyle = shieldGlow > 0 ? `rgb(${120 + 135 * shieldGlow},${70 + 120 * shieldGlow},${40 + 60 * shieldGlow})` : '#6b4a2b';
+  ctx.beginPath(); ctx.moveTo(-18, 12); ctx.quadraticCurveTo(0, 20, 18, 12); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+function drawChute(cx, cy, r, open, tx, ty, sway) {
+  ctx.strokeStyle = 'rgba(230,230,235,.7)'; ctx.lineWidth = 1;
+  for (let i = -1; i <= 1; i += .5) { ctx.beginPath(); ctx.moveTo(cx + i * r * open, cy); ctx.lineTo(tx, ty); ctx.stroke(); }
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(sway);
+  const w = r * open, h = r * .7 * (.4 + .6 * open);
+  for (let i = 0; i < 6; i++) {
+    ctx.fillStyle = i % 2 ? '#f4f4f6' : '#e2442f';
+    const a0 = Math.PI + i * Math.PI / 6, a1 = a0 + Math.PI / 6;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.ellipse(0, 0, w, h, 0, a0, a1); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
+function drawCine(L) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.setTransform(S, 0, 0, S, 0, 0);
+  const ct = L.ct, cm = M.cm || 'Command Module';
+  const fadeIn = Math.min(1, ct / .6);
+  if (ct < 4) {
+    // ---- cruise home ----
+    const k = ct / 4;
+    for (const s of stars) { const x = (s.x * .4 - ct * 30 * s.s) % VW; ctx.globalAlpha = s.a; ctx.fillStyle = '#fff'; ctx.fillRect((x + VW) % VW, (s.y + 400) % VH, s.s, s.s); }
+    ctx.globalAlpha = 1;
+    const mr = 110 * (1 - k) + 26, mx = VW * .2 - k * 60, my = VH * .62 + k * 40;
+    const mg = ctx.createRadialGradient(mx - mr * .3, my - mr * .3, 2, mx, my, mr);
+    mg.addColorStop(0, '#f1f2f5'); mg.addColorStop(.7, '#9a9eaa'); mg.addColorStop(1, '#4a4e5b');
+    ctx.fillStyle = mg; ctx.beginPath(); ctx.arc(mx, my, mr, 0, 7); ctx.fill();
+    drawEarth(VW * .74, VH * .42, 26 + k * 90);
+    const sx = VW * .3 + k * VW * .3, sy = VH * .6 - k * VH * .12;
+    if (ct < 1.2) for (let i = 0; i < 3; i++) cps.push({ x: sx - 30, y: sy + 8, vx: -120 - Math.random() * 80, vy: (Math.random() - .5) * 40, life: .4, s: 2 + Math.random() * 2, col: '#ffcf7a' });
+    for (const p of cps) { ctx.globalAlpha = Math.max(0, p.life * 2); ctx.fillStyle = p.col; ctx.fillRect(p.x, p.y, p.s, p.s); } ctx.globalAlpha = 1;
+    drawCapsule(sx, sy, Math.PI / 2 - .25, 1.1, true);
+    caption(`Heading home in ${cm}`, 'After docking in lunar orbit, the trip back to Earth takes about 3 days.');
+  } else if (ct < 9.4) {
+    // ---- reentry ----
+    const k = Math.min(1, (ct - 4) / 5.4), heat = Math.sin(Math.PI * k);
+    const sky = ctx.createLinearGradient(0, 0, 0, VH);
+    sky.addColorStop(0, '#02030a'); sky.addColorStop(.6, `rgb(${20 + 60 * heat},${18 + 20 * heat},${40})`); sky.addColorStop(1, `rgb(${60 + 140 * heat},${40 + 50 * heat},${60 - 20 * heat})`);
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, VW, VH);
+    // Earth limb
+    ctx.fillStyle = '#123a7a'; ctx.beginPath(); ctx.ellipse(VW / 2, VH + 900 - k * 120, VW * 1.4, 1000, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(120,190,255,.6)'; ctx.lineWidth = 6; ctx.stroke();
+    // speed streaks
+    ctx.strokeStyle = `rgba(255,200,140,${.15 + .35 * heat})`; ctx.lineWidth = 1.5;
+    for (let i = 0; i < 26; i++) { const y = ((i * 53 + ct * 900) % (VH + 200)) - 100, x = (i * 97) % VW; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 60, y - 60); ctx.stroke(); }
+    const shake = heat * 3, cx = VW * .5 + (Math.random() - .5) * shake, cy = VH * .5 + (Math.random() - .5) * shake;
+    // plasma glow
+    const pg = ctx.createRadialGradient(cx - 14, cy + 22, 2, cx - 14, cy + 22, 40 + 70 * heat);
+    pg.addColorStop(0, `rgba(255,250,220,${.9 * heat})`); pg.addColorStop(.35, `rgba(255,160,60,${.7 * heat})`); pg.addColorStop(1, 'rgba(255,60,20,0)');
+    ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(cx - 14, cy + 22, 40 + 70 * heat, 0, 7); ctx.fill();
+    for (const p of cps) { ctx.globalAlpha = Math.max(0, p.life); ctx.fillStyle = p.col; ctx.fillRect(p.x, p.y, p.s, p.s); } ctx.globalAlpha = 1;
+    drawCapsule(cx, cy, .6, 1.5, false, heat);
+    caption('Entering the atmosphere', `About 40,000 km/h. The heat shield faces temperatures near 2,700 °C.`);
+  } else {
+    // ---- parachutes & splashdown ----
+    const k = (ct - 9.4) / 8.6;
+    const sky = ctx.createLinearGradient(0, 0, 0, VH);
+    sky.addColorStop(0, '#2d6fc4'); sky.addColorStop(1, '#a9d4f5');
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, VW, VH);
+    const descend = ct < 15.1;
+    const SEA = VH * .62, e = Math.min(1, Math.max(0, (ct - 12.5) / 2.6)), ee = e * (2 - e);
+    const seaY = ct < 12.5 ? VH + 50 : VH + 50 - (VH + 50 - SEA) * ee;
+    // clouds rising = falling feeling
+    for (const c of clouds) {
+      const y = ((c.y * VH - (ct - 9.4) * 160 * c.s) % (VH * 1.6) + VH * 1.6) % (VH * 1.6) - VH * .3;
+      if (y > seaY - 10) continue;
+      ctx.fillStyle = 'rgba(255,255,255,.75)';
+      ctx.beginPath(); ctx.ellipse(c.x * VW, y, c.w, c.w * .22, 0, 0, 7); ctx.ellipse(c.x * VW + c.w * .4, y - c.w * .1, c.w * .5, c.w * .2, 0, 0, 7); ctx.fill();
+    }
+    // ocean
+    if (seaY < VH) {
+      const sea = ctx.createLinearGradient(0, seaY, 0, VH);
+      sea.addColorStop(0, '#1f6fa8'); sea.addColorStop(1, '#0b3558');
+      ctx.fillStyle = sea; ctx.fillRect(0, seaY, VW, VH - seaY);
+      ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.lineWidth = 1.5;
+      for (let i = 0; i < 14; i++) { const y = seaY + 8 + i * 14, o = (ct * 30 + i * 37) % 60; ctx.beginPath(); for (let x = -60 + o; x < VW; x += 60) { ctx.moveTo(x, y); ctx.quadraticCurveTo(x + 15, y - 4, x + 30, y); } ctx.stroke(); }
+      // recovery ship
+      const shx = VW * .82, shy = seaY - 4;
+      ctx.fillStyle = '#4a5260'; ctx.beginPath(); ctx.moveTo(shx - 70, shy); ctx.lineTo(shx + 70, shy); ctx.lineTo(shx + 60, shy + 10); ctx.lineTo(shx - 64, shy + 10); ctx.fill();
+      ctx.fillRect(shx - 10, shy - 16, 20, 16); ctx.fillRect(shx - 2, shy - 28, 4, 12);
+    }
+    const sway = Math.sin(ct * 1.6) * .06;
+    let capY = descend ? VH * .6 + (SEA - 20 - VH * .6) * e * e : SEA - 20 + Math.sin(ct * 3) * 2;
+    const capX = VW * .5 + sway * 80;
+    // chutes
+    const drogue = ct < 10.6, mainOpen = Math.min(1, Math.max(0, (ct - 10.6) / .8));
+    if (drogue) { drawChute(capX - 14, capY - 70, 14, Math.min(1, (ct - 9.4) * 2), capX, capY - 24, sway); drawChute(capX + 14, capY - 70, 14, Math.min(1, (ct - 9.4) * 2), capX, capY - 24, sway); }
+    else if (descend) { [-48, 0, 48].forEach((dx, i) => drawChute(capX + dx * mainOpen, capY - 130 - (i === 1 ? 14 : 0), 40, mainOpen, capX, capY - 24, sway)); }
+    else { const f = Math.max(0, 1 - (ct - 15.1) * .9); if (f > 0) { ctx.globalAlpha = f; [-60, 0, 60].forEach(dx => { ctx.fillStyle = '#e2442f'; ctx.beginPath(); ctx.ellipse(capX + dx + 80, seaY + 4, 34, 5, 0, 0, 7); ctx.fill(); }); ctx.globalAlpha = 1; } }
+    drawCapsule(capX, capY, sway, 1.5, false, 0);
+    for (const p of cps) { ctx.globalAlpha = Math.max(0, Math.min(1, p.life)); ctx.fillStyle = p.col; ctx.fillRect(p.x, p.y, p.s, p.s); } ctx.globalAlpha = 1;
+    if (ct < 15.1) caption(drogue ? 'Drogue parachutes' : 'Three main parachutes open', 'Slowing from hundreds of km/h to a gentle splash.');
+    else caption(`Splashdown! Welcome home, ${M.name}.`, `${cm} lands in the Pacific Ocean. The ${M.ship || 'recovery ship'} is on its way.`);
+    if (ct > 17.2) { ctx.fillStyle = `rgba(5,7,13,${Math.min(1, (ct - 17.2) / .8)})`; ctx.fillRect(0, 0, VW, VH); }
+  }
+  if (fadeIn < 1) { ctx.fillStyle = `rgba(0,0,0,${1 - fadeIn})`; ctx.fillRect(0, 0, VW, VH); }
 }
 
 // ---------- drawing ----------
 function draw() {
+  if (state === 'launch' && launch && launch.ct != null) { drawCine(launch); return; }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#05070d'; ctx.fillRect(0, 0, cv.width, cv.height);
   ctx.setTransform(S, 0, 0, S, 0, 0);
@@ -745,6 +898,9 @@ function frame(now) {
   update(dt); draw();
   requestAnimationFrame(frame);
 }
+function trySkip() { if (state === 'launch' && launch && !launch.over && launch.t > 4.4) launch.skip = true; }
+addEventListener('keydown', trySkip);
+cv.addEventListener('pointerdown', trySkip);
 addEventListener('resize', resize);
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; if (state === 'play') togglePause(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'play') togglePause(); });
