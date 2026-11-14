@@ -1,0 +1,37 @@
+1
+00:00:00,000 --> 00:00:02,000
+Hi, we’re Team Salooms.
+
+2
+00:00:02,000 --> 00:00:05,000
+Our challenge: tell the story of
+the hardware NASA left on the Moon.
+
+3
+00:00:05,000 --> 00:00:10,000
+So we built Leave It Behind, a Moon mission game
+where you can’t take it all home.
+
+4
+00:00:10,000 --> 00:00:13,800
+Collect samples and set up experiments
+that still work on the Moon today,
+
+5
+00:00:13,800 --> 00:00:15,000
+then throw out gear to lift off.
+
+6
+00:00:15,000 --> 00:00:20,000
+Every mission and fact comes from NASA’s Apollo records
+and its catalogue of objects left on the Moon.
+
+7
+00:00:20,000 --> 00:00:25,000
+Students learn real engineering trade-offs by playing,
+on any phone or school laptop.
+
+8
+00:00:25,000 --> 00:00:29,800
+Sometimes you have to lose something to make something.
+Play free at saloom-inc.github.io/nasa

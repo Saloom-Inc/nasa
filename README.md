@@ -35,8 +35,14 @@ js/data.js      missions, items, facts
 js/game.js      engine: terrain, physics, rendering, input, audio
 ```
 
+## Demo
+30-second video (English subtitles): https://saloom-inc.github.io/nasa/demo/
+
+## Use of Super Intelligence (SI)
+Built by Team Salooms with Claude (Anthropic) as an SI tool. Claude wrote the game code (HTML5 canvas + JavaScript), drew the vector art in code, generated the sound effects and music in code, drafted the in-game fact text, and edited the demo video from real gameplay footage. The demo video carries a visible "SI-assisted" watermark. No NASA logos, insignia or mission patches are used.
+
 ## Sources
-- NASA History Office: *Catalogue of Manmade Material on the Moon*
+- NASA History Program Office: *Catalogue of Manmade Material on the Moon* (796 items) — https://www.nasa.gov/wp-content/uploads/2024/02/final-catalogue-of-manmade-material-on-the-moon.pdf
 - NASA Space Science Data Coordinated Archive (NSSDCA)
 - LROC & HiRISE imagery of landing sites
 
